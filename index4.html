@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Theo dõi hạn sử dụng</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 1rem;
+      background-color: #f2f2f2;
+    }
+    h1 {
+      text-align: center;
+      font-size: 1.8rem;
+      margin-bottom: 1rem;
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      background: white;
+      padding: 1rem;
+      border-radius: 12px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    input, button {
+      padding: 0.6rem;
+      font-size: 1rem;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+    li {
+      background: white;
+      margin-bottom: 0.5rem;
+      padding: 0.8rem;
+      border-radius: 10px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .warning {
+      background-color: #fff3cd;
+    }
+    @media (max-width: 600px) {
+      body {
+        padding: 0.5rem;
+      }
+      input, button {
+        font-size: 1rem;
+        padding: 0.5rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>📦 Theo dõi hạn sử dụng</h1>
+
+  <form id="productForm">
+    <input type="text" id="productName" placeholder="Tên sản phẩm" required />
+    <input type="date" id="expiryDate" required />
+    <button type="submit">➕ Thêm sản phẩm</button>
+  </form>
+
+  <ul id="productList">Đang tải dữ liệu...</ul>
+
+  <script>
+    const sheetURL = "https://script.google.com/macros/s/AKfycbxdKbRt6eeC1DzkLD2B-UAisM9DeuGU9OlKzkn9yWQxoaMmWPst-h1eWEqjFYf-oceH/exec";
+
+    const form = document.getElementById("productForm");
+    const list = document.getElementById("productList");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const name = document.getElementById("productName").value.trim();
+      const expiry = document.getElementById("expiryDate").value;
+
+      if (!name || !expiry) return alert("Vui lòng nhập đầy đủ thông tin.");
+
+      try {
+        const res = await fetch(sheetURL, {
+          method: "POST",
+          body: JSON.stringify({ name, expiry }),
+          headers: { "Content-Type": "application/json" }
+        });
+
+        const text = await res.text();
+        if (text.includes("ERROR")) throw new Error(text);
+        form.reset();
+        loadProducts();
+      } catch (err) {
+        alert("Không thể thêm sản phẩm.\n" + err.message);
+        console.error(err);
+      }
+    });
+
+    async function loadProducts() {
+      list.innerHTML = "<li>Đang tải dữ liệu...</li>";
+      try {
+        const res = await fetch(sheetURL);
+        const data = await res.json();
+
+        if (!Array.isArray(data)) throw new Error("Dữ liệu không hợp lệ");
+
+        if (data.length === 0) {
+          list.innerHTML = "<li>Chưa có sản phẩm nào</li>";
+          return;
+        }
+
+        list.innerHTML = "";
+        data.forEach(({ name, expiry }) => {
+          const li = document.createElement("li");
+          const daysLeft = daysUntil(expiry);
+          li.className = daysLeft <= 3 ? "warning" : "";
+          li.innerHTML = `
+            <div>
+              <strong>${name}</strong><br/>
+              Hết hạn: ${formatDate(expiry)} (${daysLeft} ngày)
+            </div>
+          `;
+          list.appendChild(li);
+        });
+      } catch (err) {
+        list.innerHTML = "<li>Lỗi khi tải dữ liệu.</li>";
+        console.error(err);
+      }
+    }
+
+    function daysUntil(dateStr) {
+      const today = new Date();
+      const exp = new Date(dateStr);
+      const diff = exp - today;
+      return Math.ceil(diff / (1000 * 60 * 60 * 24));
+    }
+
+    function formatDate(dateStr) {
+      const d = new Date(dateStr);
+      return d.toLocaleDateString("vi-VN");
+    }
+
+    loadProducts();
+  </script>
+
+</body>
+</html>
